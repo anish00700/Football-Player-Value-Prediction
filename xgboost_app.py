@@ -6,11 +6,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import MinMaxScaler
 import xgboost as xgb
+import plotly.express as px
 
 st.set_page_config(page_title="XGBoost Player Value Predictor", layout="wide")
 
 st.markdown("""
-<h1 style='text-align: center; color: #4B84FF;'>⚽️ Football Player Value Estimator</h1>
+<h1 style='text-align: center; color: #4a90e2;'>⚽️ Football Player Value Estimator</h1>
 <hr>
 <p style='text-align: center;'>Estimate player market value using advanced AI trained on football statistics and attributes.</p>
 """, unsafe_allow_html=True)
@@ -21,7 +22,6 @@ def load_model():
 
 model = load_model()
 
-# Load player predictions from precomputed CSV
 @st.cache_data
 def load_precomputed_predictions():
     try:
@@ -32,10 +32,6 @@ def load_precomputed_predictions():
 
 precomputed_df = load_precomputed_predictions()
 
-# DEBUG: Display the first few rows of precomputed data
-# st.write(precomputed_df.head())
-
-# -------------------- Search Player -------------------- #
 st.markdown("""
 <h2 style='color:#4a90e2;'>🔎 Search Player Value</h2>
 <p>Look up predicted values for players already stored in the dataset.</p>
@@ -48,7 +44,6 @@ else:
     st.warning("⚠️ No player data available for search.")
     search_name = ""
 
-
 if search_name and not precomputed_df.empty:
     result = precomputed_df[precomputed_df['player_name'].str.lower().str.contains(search_name.lower())]
     if not result.empty:
@@ -58,32 +53,32 @@ if search_name and not precomputed_df.empty:
         st.warning("No player found with that name.")
 
 # UI Tabs
-tab1, tab2, tab3 = st.tabs(["Manual Input", "Batch Prediction", "EDA Report"])
+tab1, tab2, tab3, tab4 = st.tabs(["Manual Input", "Batch Prediction", "EDA Report", "Player Comparison"])
 
-# -------------------- Tab 1: Manual Input -------------------- #
 with tab1:
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("🔧 Enter Player Attributes")
+        st.subheader("🧑🏻 Enter Player Attributes")
         st.markdown("#### ✨ Skill Attributes")
-        overall = st.slider("Overall", 40, 99, 75, help="Player's current overall rating")
-        potential = st.slider("Potential", 40, 99, 80, help="Player's growth ceiling")
-        skill_moves = st.slider("Skill Moves", 1, 5, 3, help="1 to 5 star skill level")
-        weak_foot = st.slider("Weak Foot", 1, 5, 3, help="How good is the weaker foot")
+        overall = st.slider("Overall", 40, 99, 75)
+        potential = st.slider("Potential", 40, 99, 80)
+        skill_moves = st.slider("Skill Moves", 1, 5, 3)
+        weak_foot = st.slider("Weak Foot", 1, 5, 3)
 
         st.markdown("#### 💪 Physical Attributes")
-        age = st.slider("Age", 16, 45, 25, help="Player's age")
-        height_cm = st.slider("Height (cm)", 150, 210, 180, help="Height in centimeters")
-        weight_kg = st.slider("Weight (kg)", 50, 120, 75, help="Weight in kilograms")
+        age = st.slider("Age", 16, 45, 25)
+        height_cm = st.slider("Height (cm)", 150, 210, 180)
+        weight_kg = st.slider("Weight (kg)", 50, 120, 75)
 
-        st.markdown("#### 🌍 Reputation & Wage")
-        wage = st.number_input("Wage (€)", 1000, 1000000, 12000, step=1000, help="Weekly wage in Euros (default ≈ average wage)")
-        intl_rep = st.slider("International Reputation", 1, 5, 2, help="Reputation from 1 (low) to 5 (top)")
+        st.markdown("#### 🌍 Reputation")
+        intl_rep = st.slider("International Reputation", 1, 5, 2)
+
+        wage = st.number_input("Wage (€)", 1000, 1000000, 12000, step=1000, help="Weekly wage in Euros")
 
         position_options = ['CB', 'CDM', 'CF', 'CM', 'GK', 'LAM', 'LB', 'LCB', 'LCM', 'LDM', 'LF', 'LM', 'LS',
                             'LW', 'LWB', 'RAM', 'RB', 'RCB', 'RCM', 'RDM', 'RF', 'RM', 'RS', 'RW', 'RWB', 'ST']
-        position = st.selectbox("Position", position_options, help="Primary playing position")
+        position = st.selectbox("Position", position_options)
 
     with col2:
         st.subheader("💰 Prediction Result")
@@ -113,9 +108,7 @@ with tab1:
                 <h1 style='color: #28a745;'>€{predicted_value:,.0f}</h1>
             </div>
             """, unsafe_allow_html=True)
-            
 
-# -------------------- Tab 2: Batch Upload -------------------- #
 with tab2:
     st.subheader("📤 Upload Player Data")
     uploaded_file = st.file_uploader("Upload CSV with full model columns", type=["csv"])
@@ -125,17 +118,13 @@ with tab2:
         if all(col in df.columns for col in model.feature_names_in_):
             df['predicted_log'] = model.predict(df[model.feature_names_in_])
             df['predicted_value'] = np.expm1(df['predicted_log'])
-
             st.markdown("### ✅ Predictions")
             st.dataframe(df[['name'] + list(model.feature_names_in_) + ['predicted_value']] if 'name' in df.columns else df)
-
-            # Download
             csv = df.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Download Predictions", csv, file_name="predicted_players.csv", mime="text/csv")
         else:
             st.error("CSV missing required model input columns. Please include all trained features.")
 
-# -------------------- Tab 3: EDA -------------------- #
 with tab3:
     st.subheader("📊 Exploratory Data Analysis")
     try:
@@ -144,3 +133,35 @@ with tab3:
         st.components.v1.html(eda_html, height=1000, scrolling=True)
     except FileNotFoundError:
         st.warning("EDA report not found. Please generate eda_report.html using Jupyter nbconvert.")
+
+with tab4:
+    st.subheader("🆚 Compare Actual vs Predicted Players")
+    if not precomputed_df.empty:
+        st.dataframe(precomputed_df[['player_name', 'actual_value', 'predicted_value']])
+
+        fig_comp = px.scatter(
+            precomputed_df,
+            x='actual_value',
+            y='predicted_value',
+            title="📈 Actual vs Predicted Market Value",
+            labels={"actual_value": "Actual Value (€)", "predicted_value": "Predicted Value (€)"},
+            color='player_name',
+            hover_data=['player_name'],
+            opacity=0.7,
+            template='plotly_white'
+        )
+
+        fig_comp.add_shape(
+            type="line",
+            x0=precomputed_df['actual_value'].min(),
+            y0=precomputed_df['actual_value'].min(),
+            x1=precomputed_df['actual_value'].max(),
+            y1=precomputed_df['actual_value'].max(),
+            line=dict(color="Red", dash="dash"),
+            name="Perfect Prediction"
+        )
+
+        fig_comp.update_layout(showlegend=False)
+        st.plotly_chart(fig_comp, use_container_width=True)
+    else:
+        st.warning("No precomputed prediction data found to compare.")
